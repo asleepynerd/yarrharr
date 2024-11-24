@@ -7,6 +7,7 @@ on:
     branches: [ main ]
   release:
     types: [created]
+  workflow_call:
 
 jobs:
   build:
@@ -34,17 +35,8 @@ jobs:
           - os: linux
             arch: aarch64
             runner: ubuntu-latest
-            cmake_arch: "-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+            cmake_arch: "-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
           
-          # Windows builds
-          - os: windows
-            arch: x86_64
-            runner: windows-latest
-            cmake_arch: "-A x64"
-          - os: windows
-            arch: arm64
-            runner: windows-latest
-            cmake_arch: "-A ARM64"
 
     steps:
     - uses: actions/checkout@v3
@@ -54,9 +46,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        sudo apt-get install -y crossbuild-essential-arm64
+        sudo apt-get install -y libcurl4-openssl-dev:arm64
+        sudo apt-get install -y nlohmann-json3-dev:arm64
 
-    - name: Install dependencies (Linux)
-      if: matrix.os == 'linux'
+    - name: Install dependencies (Linux x86_64)
+      if: matrix.os == 'linux' && matrix.arch == 'x86_64'
       run: |
         sudo apt-get update
         sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev

@@ -106,7 +106,7 @@ make
 git clone https://github.com/asleepynerd/yarrharr.git
 ```
 
-4. Build the project (or use provided files in releases)
+4. Build the project (You will not recieve any support for building on Windows, so you will need to build it yourself, issues are welcome on GitHub)
 
 ```sh
 cd yarrharr
