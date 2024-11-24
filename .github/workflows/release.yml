@@ -43,7 +43,7 @@ jobs:
 
   build:
     needs: create-release
-    uses: .github/workflows/build.yml@main
+    uses: ./.github/workflows/build.yml@main
     with:
       upload_url: ${{ needs.create-release.outputs.upload_url }}
     secrets: inherit
