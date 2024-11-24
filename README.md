@@ -18,7 +18,7 @@ A command-line interface tool for managing media downloads using TMDB metadata.
 - CMake (3.15 or newer)
 - libcurl
 - nlohmann-json
-- Sleepy API key (email api@sleepy.engineer with subject "Request API Key")
+- Sleepy API key (email api@sleepy.engineer with subject "Request API Key" and body of why you want said API Key)
 - TMDB API key
 
 ### Optional
