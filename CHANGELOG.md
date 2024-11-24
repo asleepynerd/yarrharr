@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2024-11-24
+Fix Release Worflow
+
 ## [1.0.3] - 2024-11-24
 Update Workflows
 
