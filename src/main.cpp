@@ -76,15 +76,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
-        
-        if (!config.yarrharr_api_key.empty()) {
-            downloader.setApiKey(config.yarrharr_api_key);
-        } else {
-            std::cerr << "Warning: No Sleepy API key found. Please run 'yarrharr config' to set it up.\n";
-            return 1;
-        }
-
         std::string command = argv[1];
 
         if (command == "search" && argc > 2) {
@@ -173,27 +164,13 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (command == "download") {
-            std::string id;
-            int season = -1, episode = -1;
-            bool isMovie = false;
-
-            for (int i = 2; i < argc; i += 2) {
-                std::string option = argv[i];
-                if (i + 1 >= argc) break;
-                
-                if (option == "--movie") {
-                    id = argv[i + 1];
-                    isMovie = true;
-                }
-                else if (option == "--show") {
-                    id = argv[i + 1];
-                }
-                else if (option == "--season") {
-                    season = std::stoi(argv[i + 1]);
-                }
-                else if (option == "--episode") {
-                    episode = std::stoi(argv[i + 1]);
-                }
+            Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
+            
+            if (!config.yarrharr_api_key.empty()) {
+                downloader.setApiKey(config.yarrharr_api_key);
+            } else {
+                std::cerr << "Error: No Sleepy API key found. Please run 'yarrharr config' to set it up.\n";
+                return 1;
             }
 
             if (isMovie) {
