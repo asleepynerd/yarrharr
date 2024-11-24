@@ -3,7 +3,7 @@
 #include <string_view>
 
 namespace version {
-    constexpr std::string_view CURRENT_VERSION = "1.0.4";
+    constexpr std::string_view CURRENT_VERSION = "1.0.5";
 
     bool checkForUpdates();
     std::string getLatestVersion();
