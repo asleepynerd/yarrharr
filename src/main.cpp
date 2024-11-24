@@ -96,23 +96,19 @@ int main(int argc, char* argv[]) {
             std::cout << "Show: " << show.name << "\n"
                      << "First aired: " << show.first_air_date << "\n\n";
 
-            // Get terminal width
             struct winsize w;
             ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
             int termWidth = w.ws_col;
 
-            // Group episodes by season
             std::map<int, std::vector<Episode>> seasons;
             for (const auto& ep : show.episodes) {
                 seasons[ep.season].push_back(ep);
             }
 
-            // Calculate column width based on terminal size and number of seasons
             int numSeasons = seasons.size();
             int colWidth = (termWidth / numSeasons) - 3;
-            int numWidth = 3; // Width for episode numbers
+            int numWidth = 3; 
 
-            // Print season headers
             for (const auto& [season, _] : seasons) {
                 std::cout << std::setw(colWidth) << std::left 
                          << ("Season " + std::to_string(season));
@@ -121,7 +117,6 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "\n";
 
-            // Print separator
             for (size_t i = 0; i < seasons.size(); i++) {
                 std::cout << std::string(colWidth, '-');
                 if (i < seasons.size() - 1) 
@@ -129,18 +124,15 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "\n";
 
-            // Find max episodes
             size_t maxEpisodes = 0;
             for (const auto& [_, episodes] : seasons) {
                 maxEpisodes = std::max(maxEpisodes, episodes.size());
             }
 
-            // Print episodes
             for (size_t epIndex = 0; epIndex < maxEpisodes; epIndex++) {
                 std::vector<std::vector<std::string>> wrappedLines(seasons.size());
                 int maxWrappedLines = 1;
 
-                // Wrap text for each column
                 int colIndex = 0;
                 for (const auto& [season, episodes] : seasons) {
                     if (epIndex < episodes.size()) {
@@ -152,7 +144,6 @@ int main(int argc, char* argv[]) {
                     colIndex++;
                 }
 
-                // Print wrapped lines
                 for (int line = 0; line < maxWrappedLines; line++) {
                     colIndex = 0;
                     for (const auto& [season, episodes] : seasons) {
@@ -169,7 +160,6 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (command == "download") {
-            // Parse download options
             std::string id;
             int season = -1, episode = -1;
             bool isMovie = false;
@@ -216,7 +206,6 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (command == "config") {
-            // Interactive config setup
             std::string api_key;
             std::cout << "Enter TMDB API key: ";
             std::getline(std::cin, api_key);

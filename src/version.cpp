@@ -20,7 +20,6 @@ namespace {
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
             
-            // Add user agent (required by GitHub API)
             curl_easy_setopt(curl, CURLOPT_USERAGENT, "YarrHarr-Version-Check");
             
             CURLcode res = curl_easy_perform(curl);
@@ -66,7 +65,6 @@ namespace version {
             auto json = nlohmann::json::parse(response);
             std::string tag_name = json["tag_name"];
             
-            // Remove 'v' prefix if present
             if (!tag_name.empty() && tag_name[0] == 'v') {
                 tag_name = tag_name.substr(1);
             }
@@ -97,7 +95,6 @@ namespace version {
             }
             
         } catch (const std::exception& e) {
-            // Silently fail version check
         }
         
         return false;

@@ -27,17 +27,14 @@ int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
     auto now = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
     
-    if (duration.count() >= 100) {  // 100ms interval
+    if (duration.count() >= 100) {
         std::cout << "\r";
         
-        // Calculate progress
         int progress = static_cast<int>((dlnow * 100.0) / dltotal);
         
-        // Calculate current speed
-        double speed = (dlnow - lastBytes) * 1000.0 / duration.count(); // bytes per second
-        double speedMB = speed / 1024.0 / 1024.0; // MB per second
+        double speed = (dlnow - lastBytes) * 1000.0 / duration.count();
+        double speedMB = speed / 1024.0 / 1024.0; 
         
-        // Draw progress bar
         std::cout << "Progress: [";
         for (int i = 0; i < 50; i++) {
             if (i < progress / 2) {
@@ -48,7 +45,6 @@ int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
         }
         std::cout << "] " << progress << "%";
         
-        // Show downloaded/total size and speed
         double downloadedMB = dlnow / 1024.0 / 1024.0;
         double totalMB = dltotal / 1024.0 / 1024.0;
         std::cout << " " << std::fixed << std::setprecision(2) 
@@ -146,7 +142,6 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     std::string final_path;
     
     if (mp4_mode_) {
-        // If we're in MP4 mode, download to .mkv first
         if (output_path.substr(output_path.length() - 4) == ".mp4") {
             download_path = output_path.substr(0, output_path.length() - 4) + ".mkv";
             final_path = output_path;
@@ -185,14 +180,13 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
         throw std::runtime_error("Download failed: " + std::string(curl_easy_strerror(res)));
     }
 
-    // Convert to MP4 if needed
     if (mp4_mode_ && !final_path.empty()) {
         std::cout << "Converting to MP4..." << std::endl;
         if (!convertToMp4(download_path, final_path)) {
             fs::remove(download_path);
             throw std::runtime_error("Failed to convert to MP4");
         }
-        fs::remove(download_path); // Remove the temporary MKV file
+        fs::remove(download_path);
     }
 }
 
