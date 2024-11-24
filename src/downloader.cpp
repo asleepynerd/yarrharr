@@ -76,7 +76,7 @@ bool convertToMp4(const std::string& input_path, const std::string& output_path)
     return system(command.c_str()) == 0;
 }
 
-Downloader::Downloader(const std::string& base_url, bool mp4_mode = false) : base_url_(base_url), mp4_mode_(mp4_mode) {
+Downloader::Downloader(const std::string& base_url, bool mp4_mode) : base_url_(base_url), mp4_mode_(mp4_mode) {
     if (mp4_mode_ && !isFFmpegAvailable()) {
         throw std::runtime_error("FFmpeg not found in PATH. Required for MP4 conversion.");
     }

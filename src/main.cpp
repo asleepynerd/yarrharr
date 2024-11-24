@@ -37,6 +37,11 @@ int main(int argc, char* argv[]) {
         auto config = Config::load("config.json");
         TMDB tmdb(config.tmdb_api_key);
         bool mp4_mode = false;
+        std::string id;
+        int season = -1;
+        int episode = -1;
+        bool isMovie = false;
+
         for (int i = 2; i < argc; i++) {
             std::string option = argv[i];
             if (option == "--mp4") {
