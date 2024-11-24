@@ -18,6 +18,9 @@ fi
 # Update version.txt
 echo $VERSION > version.txt
 
+# update include/version.hpp
+sed -i "" "s/CURRENT_VERSION = .*/CURRENT_VERSION = \"$VERSION\"/" include/version.hpp || exit 1
+
 # Prompt for changelog entry
 echo "Enter changelog entry (press Ctrl+D when done):"
 CHANGELOG_ENTRY=$(cat)
@@ -27,7 +30,7 @@ DATE=$(date +%Y-%m-%d)
 sed -i "" "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE\n$CHANGELOG_ENTRY/" CHANGELOG.md
 
 # Commit changes
-git add version.txt CHANGELOG.md
+git add version.txt CHANGELOG.md include/version.hpp
 git commit -m "Bump version to $VERSION"
 
 # Create and push tag
