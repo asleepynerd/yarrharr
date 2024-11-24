@@ -1,0 +1,47 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get version
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            ## YarrHarr ${{ github.ref_name }}
+
+            ### Changes in this version:
+            - Please check the [CHANGELOG.md](CHANGELOG.md) for details
+
+            ### Downloads
+            - Automated builds will be attached to this release
+
+            ### Installation
+            Please see the [README.md](README.md) for installation instructions.
+
+  # This job will be triggered by the release workflow
+  build:
+    needs: create-release
+    uses: ./.github/workflows/build.yml

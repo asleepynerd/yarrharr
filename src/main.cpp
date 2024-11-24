@@ -9,6 +9,7 @@
 #include <map>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include "version.hpp"
 
 void printHelp() {
     std::cout << "Usage: yarrharr <command> [options]\n\n"
@@ -31,6 +32,10 @@ int main(int argc, char* argv[]) {
     if (argc < 2) {
         printHelp();
         return 1;
+    }
+
+    if (argc >= 2 && std::string(argv[1]) != "help") {
+        version::checkForUpdates();
     }
 
     try {

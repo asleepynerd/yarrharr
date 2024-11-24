@@ -15,6 +15,7 @@ set(SOURCES
     src/tmdb.cpp
     src/utils.cpp
     src/config.cpp
+    src/version.cpp
 )
 
 # Create executable
