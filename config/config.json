@@ -1,0 +1,6 @@
+{
+  "tmdb_api_key": "YOUR_API_KEY_HERE",
+  "download_path": "~/sleepyPirate/downloads/",
+  "create_season_folders": true,
+  "create_show_folders": true
+}

@@ -1,0 +1,110 @@
+name: Build YarrHarr
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # MacOS builds
+          - os: macos
+            arch: arm64
+            runner: macos-latest
+            cmake_arch: "-DCMAKE_OSX_ARCHITECTURES=arm64"
+          - os: macos
+            arch: x86_64
+            runner: macos-latest
+            cmake_arch: "-DCMAKE_OSX_ARCHITECTURES=x86_64"
+          
+          # Linux builds
+          - os: linux
+            arch: x86_64
+            runner: ubuntu-latest
+            cmake_arch: ""
+          - os: linux
+            arch: aarch64
+            runner: ubuntu-latest
+            cmake_arch: "-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+          
+          # Windows builds
+          - os: windows
+            arch: x86_64
+            runner: windows-latest
+            cmake_arch: "-A x64"
+          - os: windows
+            arch: arm64
+            runner: windows-latest
+            cmake_arch: "-A ARM64"
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Linux ARM64 toolchain
+      if: matrix.os == 'linux' && matrix.arch == 'aarch64'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos'
+      run: |
+        brew install curl nlohmann-json
+
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows'
+      run: |
+        vcpkg install curl:${{ matrix.arch }}-windows
+        vcpkg install nlohmann-json:${{ matrix.arch }}-windows
+        vcpkg integrate install
+
+    - name: Configure CMake
+      run: |
+        cmake -B build ${{ matrix.cmake_arch }} -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Create package
+      run: |
+        cd build
+        mkdir yarrharr-${{ matrix.os }}-${{ matrix.arch }}
+        if [ "${{ matrix.os }}" = "windows" ]; then
+          cp Release/yarrharr.exe yarrharr-${{ matrix.os }}-${{ matrix.arch }}/
+        else
+          cp yarrharr yarrharr-${{ matrix.os }}-${{ matrix.arch }}/
+        fi
+        zip -r yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip yarrharr-${{ matrix.os }}-${{ matrix.arch }}
+      shell: bash
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: yarrharr-${{ matrix.os }}-${{ matrix.arch }}
+        path: build/yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
+
+    - name: Upload Release Assets
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: build/yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
+        asset_name: yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
+        asset_content_type: application/zip 
