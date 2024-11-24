@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2024-11-24
+make downloader more like NPM and implement api key for YarrHarr
+
 ## [1.1.0] - 2024-11-24
 add skip specials flag
 
