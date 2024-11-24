@@ -72,7 +72,8 @@ bool convertToMp4(const std::string& input_path, const std::string& output_path)
     return system(command.c_str()) == 0;
 }
 
-Downloader::Downloader(const std::string& base_url, bool mp4_mode) : base_url_(base_url), mp4_mode_(mp4_mode) {
+Downloader::Downloader(const std::string& base_url, bool mp4_mode, bool skip_specials) 
+    : base_url_(base_url), mp4_mode_(mp4_mode), skip_specials_(skip_specials) {
     if (mp4_mode_ && !isFFmpegAvailable()) {
         throw std::runtime_error("FFmpeg not found in PATH. Required for MP4 conversion.");
     }
@@ -111,6 +112,10 @@ void Downloader::downloadEpisode(const Show& show, const Episode& episode, const
 }
 
 void Downloader::downloadSeason(const Show& show, int season, const std::string& output_dir) {
+    if (skip_specials_ && season == 0) {
+        return;  // Skip season 0 if skip_specials_ is true
+    }
+    
     for (const auto& episode : show.episodes) {
         if (episode.season == season) {
             downloadEpisode(show, episode, output_dir);
@@ -121,7 +126,9 @@ void Downloader::downloadSeason(const Show& show, int season, const std::string&
 void Downloader::downloadShow(const Show& show, const std::string& output_dir) {
     std::set<int, std::less<int>> seasons;
     for (const auto& episode : show.episodes) {
-        seasons.insert(episode.season);
+        if (!skip_specials_ || episode.season > 0) {  // Skip season 0 if skip_specials_ is true
+            seasons.insert(episode.season);
+        }
     }
     
     for (int season : seasons) {

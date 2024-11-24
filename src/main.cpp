@@ -22,6 +22,7 @@ void printHelp() {
               << "    --show <id>           Download entire show\n"
               << "    --season <num>        Download specific season\n"
               << "    --episode <num>       Download specific episode\n"
+              << "    --skip-specials       Skip downloading season 0 (specials)\n"
               << "  config                  Configure API keys and settings\n"
               << "  help                    Show this help message\n"
               << "  Global options:\n"
@@ -42,6 +43,7 @@ int main(int argc, char* argv[]) {
         auto config = Config::load("config.json");
         TMDB tmdb(config.tmdb_api_key);
         bool mp4_mode = false;
+        bool skip_specials = false;
         std::string id;
         int season = -1;
         int episode = -1;
@@ -51,6 +53,10 @@ int main(int argc, char* argv[]) {
             std::string option = argv[i];
             if (option == "--mp4") {
                 mp4_mode = true;
+                continue;
+            }
+            if (option == "--skip-specials") {
+                skip_specials = true;
                 continue;
             }
             if (i + 1 >= argc) break;
@@ -70,7 +76,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode);
+        Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
 
         std::string command = argv[1];
 
