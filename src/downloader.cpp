@@ -27,31 +27,37 @@ int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
     auto now = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
     
-    if (duration.count() >= 100) {
-        std::cout << "\r";
+    if (duration.count() >= 100) {  // 100ms interval
+        // Clear the current line
+        std::cout << "\033[2K\r";  // ANSI escape code to clear line and return carriage
         
+        // Calculate progress
         int progress = static_cast<int>((dlnow * 100.0) / dltotal);
         
-        double speed = (dlnow - lastBytes) * 1000.0 / duration.count();
-        double speedMB = speed / 1024.0 / 1024.0; 
+        // Calculate current speed
+        double speed = (dlnow - lastBytes) * 1000.0 / duration.count(); // bytes per second
+        double speedMB = speed / 1024.0 / 1024.0; // MB per second
         
-        std::cout << "Progress: [";
+        // Draw progress bar
+        std::cout << "Downloading [";
         for (int i = 0; i < 50; i++) {
             if (i < progress / 2) {
                 std::cout << "=";
+            } else if (i == progress / 2) {
+                std::cout << ">";
             } else {
                 std::cout << " ";
             }
         }
-        std::cout << "] " << progress << "%";
         
+        // Show downloaded/total size and speed
         double downloadedMB = dlnow / 1024.0 / 1024.0;
         double totalMB = dltotal / 1024.0 / 1024.0;
-        std::cout << " " << std::fixed << std::setprecision(2) 
+        std::cout << "] " << std::fixed << std::setprecision(2) 
                  << downloadedMB << "MB/" << totalMB << "MB"
                  << " @ " << speedMB << " MB/s";
         
-        std::cout.flush();
+        std::cout.flush();  // Make sure to flush the output
         lastUpdate = now;
         lastBytes = dlnow;
     }
@@ -155,7 +161,8 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
         }
     }
 
-    std::cout << "Downloading to: " << download_path << std::endl;
+    // Clear line and print the "Downloading to:" message
+    std::cout << "\033[2K\rDownloading to: " << download_path << std::flush;
     
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -175,7 +182,18 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     
+    // Add API key header
+    struct curl_slist* headers = NULL;
+    if (!api_key_.empty()) {
+        headers = curl_slist_append(headers, ("X-API-Key: " + api_key_).c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+    
     CURLcode res = curl_easy_perform(curl);
+    
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
     
     fclose(fp);
     curl_easy_cleanup(curl);
@@ -188,13 +206,17 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     }
 
     if (mp4_mode_ && !final_path.empty()) {
-        std::cout << "Converting to MP4..." << std::endl;
+        // Clear line and print the conversion message
+        std::cout << "\033[2K\rConverting to MP4..." << std::flush;
         if (!convertToMp4(download_path, final_path)) {
             fs::remove(download_path);
             throw std::runtime_error("Failed to convert to MP4");
         }
         fs::remove(download_path);
     }
+    
+    // Add a newline at the very end
+    std::cout << std::endl;
 }
 
 void Downloader::setProgressCallback(std::function<void(int, int)> callback) {

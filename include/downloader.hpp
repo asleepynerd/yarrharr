@@ -10,6 +10,7 @@ class Downloader {
 public:
     explicit Downloader(const std::string& base_url, bool mp4_mode = false, bool skip_specials = false);
     
+    void setApiKey(const std::string& api_key) { api_key_ = api_key; }
     void downloadMovie(const Movie& movie, const std::string& output_dir);
     void downloadEpisode(const Show& show, const Episode& episode, const std::string& output_dir);
     void downloadSeason(const Show& show, int season, const std::string& output_dir);
@@ -19,6 +20,7 @@ public:
 
 private:
     std::string base_url_;
+    std::string api_key_;
     bool mp4_mode_;
     bool skip_specials_;
     std::function<void(int, int)> progress_callback_;

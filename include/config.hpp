@@ -4,6 +4,7 @@
 
 struct Config {
     std::string tmdb_api_key;
+    std::string yarrharr_api_key;
     std::string download_path;
     bool create_season_folders;
     bool create_show_folders;

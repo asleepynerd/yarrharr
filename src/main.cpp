@@ -77,6 +77,13 @@ int main(int argc, char* argv[]) {
         }
 
         Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
+        
+        if (!config.yarrharr_api_key.empty()) {
+            downloader.setApiKey(config.yarrharr_api_key);
+        } else {
+            std::cerr << "Warning: No Sleepy API key found. Please run 'yarrharr config' to set it up.\n";
+            return 1;
+        }
 
         std::string command = argv[1];
 
@@ -212,12 +219,18 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (command == "config") {
-            std::string api_key;
+            std::string tmdb_api_key;
+            std::string yarrharr_api_key;
+            
             std::cout << "Enter TMDB API key: ";
-            std::getline(std::cin, api_key);
+            std::getline(std::cin, tmdb_api_key);
+            
+            std::cout << "Enter YarrHarr API key (email api@sleepy.engineer to get one): ";
+            std::getline(std::cin, yarrharr_api_key);
             
             Config newConfig{
-                api_key,
+                tmdb_api_key,
+                yarrharr_api_key,
                 config.download_path,
                 true,
                 true
