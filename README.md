@@ -125,3 +125,13 @@ make
 ## Configuration
 
 The program will automatically create a `config.json` file in the same directory as the executable. You can modify the settings in this file to customize the program's behavior. You will need to obtain an API key from [The Movie Database (TMDB)](https://www.themoviedb.org/settings/api) to use the search and download features.
+
+## Usage
+
+```sh
+./yarrharr
+```
+
+## License
+
+This project is licensed under the AGPL-3.0 License. See the [LICENSE](LICENSE) file for details.
