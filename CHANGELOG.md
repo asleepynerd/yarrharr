@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2024-11-25
+Make code more tidy, give premade tmdb key, add metadata stripping.
+
 ## [2.1.0] - 2024-11-24
 Make config command exempt from config
 
