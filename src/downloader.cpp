@@ -88,7 +88,7 @@ bool isFFmpegAvailable() {
 }
 
 bool convertToMp4(const std::string& input_path, const std::string& output_path) {
-    std::string command = "ffmpeg -i \"" + input_path + 
+    std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + input_path + 
                          "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
                          "-metadata title= -metadata description= -metadata comment= " +
                          "-metadata synopsis= -metadata show= -metadata episode_id= " +
@@ -233,12 +233,12 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     std::cout << "\033[2K\rDownloading to: " << download_path << std::flush;
     
     if (isM3U8Url(url)) {
-        std::string command = "ffmpeg -hide_banner -loglevel error -stats -i \"" + url + 
+        std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + url + 
                             "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
                             "-metadata title= -metadata description= -metadata comment= " +
                             "-metadata synopsis= -metadata show= -metadata episode_id= " +
                             "-metadata network= -metadata genre= " +
-                            "-c copy \"" + download_path + "\" 2>&1";
+                            "-c copy \"" + download_path + "\" -y 2>&1";
         
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -302,7 +302,7 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
             std::string tempPath = download_path + ".processing";
             std::rename(download_path.c_str(), tempPath.c_str());
             
-            std::string command = "ffmpeg -i \"" + tempPath + 
+            std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + tempPath + 
                                 "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
                                 "-metadata title= -metadata description= -metadata comment= " +
                                 "-metadata synopsis= -metadata show= -metadata episode_id= " +

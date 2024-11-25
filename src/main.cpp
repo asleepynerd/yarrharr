@@ -31,6 +31,7 @@ void printHelp() {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
+        version::checkForUpdates();
         printHelp();
         return 1;
     }
