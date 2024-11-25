@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2024-11-25
+fixed mp4, added update command, changed builds to output binaires and not zip.
+
 ## [2.2.2] - 2024-11-25
 Fix `STDOUT_FILENO` being missing.
 
