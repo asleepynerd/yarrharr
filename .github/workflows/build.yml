@@ -36,11 +36,6 @@ jobs:
             arch: x86_64
             runner: ubuntu-latest
             cmake_arch: ""
-          - os: linux
-            arch: aarch64
-            runner: ubuntu-latest
-            cmake_arch: "-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
-          
 
     steps:
     - uses: actions/checkout@v3

@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 
