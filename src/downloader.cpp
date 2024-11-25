@@ -12,6 +12,7 @@
 #include <sstream>
 #include <chrono>
 #include <cstdlib>
+#include <sys/ioctl.h>
 
 namespace fs = std::filesystem;
 
@@ -27,32 +28,49 @@ int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
     auto now = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
     
-    if (duration.count() >= 100) { 
-        std::cout << "\033[2K\r"; 
+    if (duration.count() >= 100) {
+        // Get terminal width
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int termWidth = w.ws_col;
         
+        // Calculate sizes for components
+        int progressBarWidth = std::min(50, termWidth - 40); // Shrink progress bar if needed
         int progress = static_cast<int>((dlnow * 100.0) / dltotal);
         
+        // Calculate speed
         double speed = (dlnow - lastBytes) * 1000.0 / duration.count();
         double speedMB = speed / 1024.0 / 1024.0;
-
-        std::cout << "Downloading [";
-        for (int i = 0; i < 50; i++) {
-            if (i < progress / 2) {
-                std::cout << "=";
-            } else if (i == progress / 2) {
-                std::cout << ">";
-            } else {
-                std::cout << " ";
-            }
-        }
         
+        // Calculate sizes
         double downloadedMB = dlnow / 1024.0 / 1024.0;
         double totalMB = dltotal / 1024.0 / 1024.0;
-        std::cout << "] " << std::fixed << std::setprecision(2) 
-                 << downloadedMB << "MB/" << totalMB << "MB"
-                 << " @ " << speedMB << " MB/s";
         
-        std::cout.flush();
+        // Format the output string first
+        std::stringstream ss;
+        ss << "\r[";
+        for (int i = 0; i < progressBarWidth; i++) {
+            if (i < (progress * progressBarWidth) / 100) {
+                ss << "=";
+            } else if (i == (progress * progressBarWidth) / 100) {
+                ss << ">";
+            } else {
+                ss << " ";
+            }
+        }
+        ss << "] " << std::fixed << std::setprecision(2) 
+           << downloadedMB << "MB/" << totalMB << "MB @ " 
+           << speedMB << "MB/s";
+        
+        std::string output = ss.str();
+        
+        // Truncate if longer than terminal width
+        if (output.length() > static_cast<size_t>(termWidth)) {
+            output = output.substr(0, termWidth - 3) + "...";
+        }
+        
+        std::cout << "\033[2K" << output << std::flush;
+        
         lastUpdate = now;
         lastBytes = dlnow;
     }
