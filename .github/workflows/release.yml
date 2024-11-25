@@ -47,3 +47,32 @@ jobs:
     with:
       upload_url: ${{ needs.create-release.outputs.upload_url }}
     secrets: inherit
+
+  update-homebrew:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v3
+        with:
+          repository: asleepynerd/homebrew-tap
+          token: ${{ secrets.TAP_TOKEN }}  # You'll need to create this
+
+      - name: Calculate SHA256
+        run: |
+          curl -L https://github.com/asleepynerd/yarrharr/archive/refs/tags/v${{ needs.create-release.outputs.version }}.tar.gz | sha256sum | cut -d' ' -f1 > sha.txt
+
+      - name: Update Formula
+        run: |
+          SHA=$(cat sha.txt)
+          VERSION=${{ needs.create-release.outputs.version }}
+          sed -i "s/version .*/version \"${VERSION}\"/" Formula/yarrharr.rb
+          sed -i "s/sha256 .*/sha256 \"${SHA}\"/" Formula/yarrharr.rb
+
+      - name: Commit and Push
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add Formula/yarrharr.rb
+          git commit -m "yarrharr ${{ needs.create-release.outputs.version }}"
+          git push
