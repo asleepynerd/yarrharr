@@ -6,11 +6,11 @@ Config Config::load(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         return Config{
-            "",     // tmdb_api_key
-            "",     // yarrharr_api_key
-            "downloads", // download_path
-            true,   // create_season_folders
-            true    // create_show_folders
+            "f6e840332142f77746185ab4e67be858",     
+            "sleepy_xxxxxxxxxxxxxxxxxxxxxxxxx",     
+            "downloads", 
+            true,   
+            true    
         };
     }
     

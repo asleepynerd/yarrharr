@@ -41,6 +41,34 @@ int main(int argc, char* argv[]) {
 
     try {
         auto config = Config::load("config.json");
+        std::string command = argv[1];
+
+        if (command == "config") {
+            std::string tmdb_api_key;
+            std::string yarrharr_api_key;
+            
+            std::cout << "Enter TMDB API key: ";
+            std::getline(std::cin, tmdb_api_key);
+            
+            std::cout << "Enter YarrHarr API key (email api@sleepy.engineer to get one): ";
+            std::getline(std::cin, yarrharr_api_key);
+            
+            Config newConfig{
+                tmdb_api_key,
+                yarrharr_api_key,
+                config.download_path,
+                true,
+                true
+            };
+            newConfig.save("config.json");
+            return 0;
+        }
+
+        if (config.tmdb_api_key.empty()) {
+            std::cerr << "Error: No TMDB API key found. Please run 'yarrharr config' to set it up.\n";
+            return 1;
+        }
+
         TMDB tmdb(config.tmdb_api_key);
         bool mp4_mode = false;
         bool skip_specials = false;
@@ -76,9 +104,39 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        std::string command = argv[1];
+        if (command == "download") {
+            Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
+            
+            if (!config.yarrharr_api_key.empty()) {
+                downloader.setApiKey(config.yarrharr_api_key);
+            } else {
+                std::cerr << "Error: No YarrHarr API key found. Please run 'yarrharr config' to set it up.\n";
+                return 1;
+            }
 
-        if (command == "search" && argc > 2) {
+            if (isMovie) {
+                auto movie = tmdb.getMovieDetails(id);
+                downloader.downloadMovie(movie, config.download_path);
+            }
+            else if (!id.empty()) {
+                auto show = tmdb.getShowDetails(id);
+                if (season >= 0 && episode >= 0) {
+                    for (const auto& ep : show.episodes) {
+                        if (ep.season == season && ep.episode == episode) {
+                            downloader.downloadEpisode(show, ep, config.download_path);
+                            break;
+                        }
+                    }
+                }
+                else if (season >= 0) {
+                    downloader.downloadSeason(show, season, config.download_path);
+                }
+                else {
+                    downloader.downloadShow(show, config.download_path);
+                }
+            }
+        }
+        else if (command == "search" && argc > 2) {
             std::string query;
             for (int i = 2; i < argc; i++) {
                 query += std::string(argv[i]) + " ";
@@ -162,57 +220,6 @@ int main(int argc, char* argv[]) {
                     std::cout << "\n";
                 }
             }
-        }
-        else if (command == "download") {
-            Downloader downloader("https://sleepy.engineer/api/yarrharr/direct", mp4_mode, skip_specials);
-            
-            if (!config.yarrharr_api_key.empty()) {
-                downloader.setApiKey(config.yarrharr_api_key);
-            } else {
-                std::cerr << "Error: No Sleepy API key found. Please run 'yarrharr config' to set it up.\n";
-                return 1;
-            }
-
-            if (isMovie) {
-                auto movie = tmdb.getMovieDetails(id);
-                downloader.downloadMovie(movie, config.download_path);
-            }
-            else if (!id.empty()) {
-                auto show = tmdb.getShowDetails(id);
-                if (season >= 0 && episode >= 0) {
-                    for (const auto& ep : show.episodes) {
-                        if (ep.season == season && ep.episode == episode) {
-                            downloader.downloadEpisode(show, ep, config.download_path);
-                            break;
-                        }
-                    }
-                }
-                else if (season >= 0) {
-                    downloader.downloadSeason(show, season, config.download_path);
-                }
-                else {
-                    downloader.downloadShow(show, config.download_path);
-                }
-            }
-        }
-        else if (command == "config") {
-            std::string tmdb_api_key;
-            std::string yarrharr_api_key;
-            
-            std::cout << "Enter TMDB API key: ";
-            std::getline(std::cin, tmdb_api_key);
-            
-            std::cout << "Enter YarrHarr API key (email api@sleepy.engineer to get one): ";
-            std::getline(std::cin, yarrharr_api_key);
-            
-            Config newConfig{
-                tmdb_api_key,
-                yarrharr_api_key,
-                config.download_path,
-                true,
-                true
-            };
-            newConfig.save("config.json");
         }
         else if (command == "movie" && argc > 2) {
             auto movie = tmdb.getMovieDetails(argv[2]);
