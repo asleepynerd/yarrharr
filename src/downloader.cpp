@@ -14,70 +14,9 @@
 #include <cstdlib>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include "download_utils.hpp"
 
 namespace fs = std::filesystem;
-
-size_t writeCallback(void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    return fwrite(ptr, size, nmemb, stream);
-}
-
-int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
-    if (dltotal <= 0) return 0;
-    
-    static auto lastUpdate = std::chrono::steady_clock::now();
-    static curl_off_t lastBytes = 0;
-    auto now = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
-    
-    if (duration.count() >= 100) {
-        // Get terminal width
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-        int termWidth = w.ws_col;
-        
-        // Calculate sizes for components
-        int progressBarWidth = std::min(50, termWidth - 40); // Shrink progress bar if needed
-        int progress = static_cast<int>((dlnow * 100.0) / dltotal);
-        
-        // Calculate speed
-        double speed = (dlnow - lastBytes) * 1000.0 / duration.count();
-        double speedMB = speed / 1024.0 / 1024.0;
-        
-        // Calculate sizes
-        double downloadedMB = dlnow / 1024.0 / 1024.0;
-        double totalMB = dltotal / 1024.0 / 1024.0;
-        
-        // Format the output string first
-        std::stringstream ss;
-        ss << "\r[";
-        for (int i = 0; i < progressBarWidth; i++) {
-            if (i < (progress * progressBarWidth) / 100) {
-                ss << "=";
-            } else if (i == (progress * progressBarWidth) / 100) {
-                ss << ">";
-            } else {
-                ss << " ";
-            }
-        }
-        ss << "] " << std::fixed << std::setprecision(2) 
-           << downloadedMB << "MB/" << totalMB << "MB @ " 
-           << speedMB << "MB/s";
-        
-        std::string output = ss.str();
-        
-        // Truncate if longer than terminal width
-        if (output.length() > static_cast<size_t>(termWidth)) {
-            output = output.substr(0, termWidth - 3) + "...";
-        }
-        
-        std::cout << "\033[2K" << output << std::flush;
-        
-        lastUpdate = now;
-        lastBytes = dlnow;
-    }
-    
-    return 0;
-}
 
 bool isFFmpegAvailable() {
     #ifdef _WIN32
@@ -224,13 +163,13 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     std::string final_path;
     
     if (mp4_mode_) {
-        if (output_path.substr(output_path.length() - 4) == ".mp4") {
-            download_path = output_path.substr(0, output_path.length() - 4) + ".mkv";
-            final_path = output_path;
+        if (output_path.substr(output_path.length() - 4) == ".mkv") {
+            final_path = output_path.substr(0, output_path.length() - 4) + ".mp4";
+            download_path = output_path;
         }
     }
 
-    std::cout << "\033[2K\rDownloading to: " << download_path << std::flush;
+    std::cout << "\033[2K\rDownloading to: " << (final_path.empty() ? download_path : final_path) << std::flush;
     
     if (isM3U8Url(url)) {
         std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + url + 
@@ -317,7 +256,7 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
         }
     }
 
-    if (mp4_mode_ && !final_path.empty() && !isM3U8Url(url)) {
+    if (mp4_mode_ && !final_path.empty()) {
         std::cout << "\033[2K\rConverting to MP4..." << std::flush;
         if (!convertToMp4(download_path, final_path)) {
             fs::remove(download_path);

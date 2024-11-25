@@ -74,31 +74,27 @@ jobs:
     - name: Build
       run: cmake --build build --config Release
 
-    - name: Create package
+    - name: Prepare binary
       run: |
         cd build
-        mkdir yarrharr-${{ matrix.os }}-${{ matrix.arch }}
         if [ "${{ matrix.os }}" = "windows" ]; then
-          cp Release/yarrharr.exe yarrharr-${{ matrix.os }}-${{ matrix.arch }}/
-        else
-          cp yarrharr yarrharr-${{ matrix.os }}-${{ matrix.arch }}/
+          cp Release/yarrharr.exe yarrharr
         fi
-        zip -r yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip yarrharr-${{ matrix.os }}-${{ matrix.arch }}
       shell: bash
 
-    - name: Upload artifacts
+    - name: Upload binary artifact
       uses: actions/upload-artifact@v3
       with:
         name: yarrharr-${{ matrix.os }}-${{ matrix.arch }}
-        path: build/yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
+        path: build/yarrharr
 
-    - name: Upload Release Assets
+    - name: Upload Release Binary
       if: inputs.upload_url != ''
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ inputs.upload_url }}
-        asset_path: build/yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
-        asset_name: yarrharr-${{ matrix.os }}-${{ matrix.arch }}.zip
-        asset_content_type: application/zip 
+        asset_path: build/yarrharr
+        asset_name: yarrharr-${{ matrix.os }}-${{ matrix.arch }}
+        asset_content_type: application/octet-stream 

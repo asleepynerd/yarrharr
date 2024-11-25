@@ -10,6 +10,14 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include "version.hpp"
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <curl/curl.h>
+#include <sstream>
+#include "download_utils.hpp"
+
+namespace fs = std::filesystem;
 
 void printHelp() {
     std::cout << "Usage: yarrharr <command> [options]\n\n"
@@ -27,6 +35,84 @@ void printHelp() {
               << "  help                    Show this help message\n"
               << "  Global options:\n"
               << "    --mp4                Convert downloads to MP4 format (requires ffmpeg)\n";
+}
+
+bool updateBinary(const char* execPath) {
+    try {
+        std::string latestVersion = version::getLatestVersion();
+        if (!version::isVersionNewer(latestVersion, std::string(version::CURRENT_VERSION))) {
+            std::cout << "You are already running the latest version (" << version::CURRENT_VERSION << ").\n";
+            return true;
+        }
+
+        #if defined(__APPLE__)
+            #if defined(__arm64__)
+                const std::string platform = "macos-arm64";
+            #else
+                const std::string platform = "macos-x86_64";
+            #endif
+        #elif defined(__linux__)
+            #if defined(__aarch64__)
+                const std::string platform = "linux-aarch64";
+            #else
+                const std::string platform = "linux-x86_64";
+            #endif
+        #else
+            std::cerr << "Unsupported platform for auto-update\n";
+            return false;
+        #endif
+
+        fs::path tempFile = fs::temp_directory_path() / "yarrharr.new";
+        
+        std::cout << "Downloading update " << version::CURRENT_VERSION << " → " << latestVersion << "...\n";
+        
+        std::string downloadUrl = "https://github.com/asleepynerd/yarrharr/releases/download/v" + 
+                                latestVersion + "/yarrharr-" + platform;
+
+        CURL* curl = curl_easy_init();
+        if (!curl) {
+            throw std::runtime_error("Failed to initialize download");
+        }
+
+        FILE* fp = fopen(tempFile.string().c_str(), "wb");
+        if (!fp) {
+            curl_easy_cleanup(curl);
+            throw std::runtime_error("Failed to create temporary file");
+        }
+
+        curl_easy_setopt(curl, CURLOPT_URL, downloadUrl.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+
+        CURLcode res = curl_easy_perform(curl);
+        fclose(fp);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            fs::remove(tempFile);
+            throw std::runtime_error("Failed to download update");
+        }
+
+        std::cout << std::endl;
+
+        fs::permissions(tempFile, 
+            fs::perms::owner_exec | fs::perms::owner_read | fs::perms::owner_write,
+            fs::perm_options::add);
+
+        fs::path currentExe = fs::canonical(fs::path(execPath));
+
+        fs::rename(tempFile, currentExe);
+
+        std::cout << "Update complete! Please restart yarrharr.\n";
+        return true;
+
+    } catch (const std::exception& e) {
+        std::cerr << "Update failed: " << e.what() << "\n";
+        return false;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -230,6 +316,12 @@ int main(int argc, char* argv[]) {
               
             std::cout << "To download this movie:\n"
                       << "./yarrharr download --movie " << movie.id << "\n";
+        }
+        else if (command == "update") {
+            if (updateBinary(argv[0])) {
+                return 0;
+            }
+            return 1;
         }
         else {
             printHelp();
