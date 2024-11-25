@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <regex>
+#include <filesystem>
 
 namespace {
     size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
@@ -31,6 +32,17 @@ namespace {
         }
         
         return readBuffer;
+    }
+
+    bool isBrewInstall() {
+        try {
+            std::filesystem::path exePath = std::filesystem::canonical("/proc/self/exe");
+            std::string pathStr = exePath.string();
+            return pathStr.find("/usr/local/Cellar/yarrharr") != std::string::npos ||
+                   pathStr.find("/opt/homebrew/Cellar/yarrharr") != std::string::npos;
+        } catch (...) {
+            return false;
+        }
     }
 }
 
@@ -88,9 +100,13 @@ namespace version {
             if (isVersionNewer(latestVersion, std::string(CURRENT_VERSION))) {
                 std::cout << "\nUpdate available! "
                           << "Current version: " << CURRENT_VERSION
-                          << ", Latest version: " << latestVersion << "\n"
-                          << "Visit https://github.com/asleepynerd/yarrharr/releases "
-                          << "to download the latest version.\n\n";
+                          << ", Latest version: " << latestVersion << "\n";
+
+                if (isBrewInstall()) {
+                    std::cout << "To update, run: brew upgrade yarrharr\n\n";
+                } else {
+                    std::cout << "To update, run: ./yarrharr update\n\n";
+                }
                 return true;
             }
             
