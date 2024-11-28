@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2024-11-28
+update everything, added games, fix downloads, add m3u8 support, add new config placement and setting system.
+
 ## [2.5.1] - 2024-11-25
 Fix brew release
 
