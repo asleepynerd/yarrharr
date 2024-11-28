@@ -11,4 +11,7 @@ struct Config {
     
     static Config load(const std::string& path);
     void save(const std::string& path) const;
+    
+    static std::string getConfigPath();
+    static void ensureConfigDirectory();
 };

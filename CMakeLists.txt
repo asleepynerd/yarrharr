@@ -17,6 +17,7 @@ set(SOURCES
     src/config.cpp
     src/version.cpp
     src/download_utils.cpp
+    src/games.cpp
 )
 
 # Create executable

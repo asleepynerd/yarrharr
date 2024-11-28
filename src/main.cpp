@@ -16,6 +16,7 @@
 #include <curl/curl.h>
 #include <sstream>
 #include "download_utils.hpp"
+#include "games.hpp"
 
 namespace fs = std::filesystem;
 
@@ -31,10 +32,17 @@ void printHelp() {
               << "    --season <num>        Download specific season\n"
               << "    --episode <num>       Download specific episode\n"
               << "    --skip-specials       Skip downloading season 0 (specials)\n"
-              << "  config                  Configure API keys and settings\n"
+              << "  config [options]         Configure API keys and settings\n"
+              << "    --tmdb <key>          Set TMDB API key\n"
+              << "    --yarrharr <key>      Set YarrHarr API key\n"
               << "  help                    Show this help message\n"
               << "  Global options:\n"
-              << "    --mp4                Convert downloads to MP4 format (requires ffmpeg)\n";
+              << "    --mp4                 Convert downloads to MP4 format (requires ffmpeg)\n"
+              << "    --config <path>       Specify custom config file location\n"
+              << "  games <subcommand>       Game-related commands\n"
+              << "    search <query>         Search for games\n"
+              << "    info <id>             Show details about a game\n"
+              << "    download <id>         Download a game\n";
 }
 
 bool updateBinary(const char* execPath) {
@@ -127,27 +135,47 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        auto config = Config::load("config.json");
+        // Check for custom config path
+        std::string configPath = Config::getConfigPath();
+        for (int i = 1; i < argc - 1; i++) {
+            if (std::string(argv[i]) == "--config") {
+                configPath = argv[i + 1];
+                break;
+            }
+        }
+        
+        auto config = Config::load(configPath);
         std::string command = argv[1];
 
         if (command == "config") {
-            std::string tmdb_api_key;
-            std::string yarrharr_api_key;
+            bool updated = false;
+            for (int i = 2; i < argc; i++) {
+                std::string option = argv[i];
+                if (option == "--tmdb" && i + 1 < argc) {
+                    config.tmdb_api_key = argv[++i];
+                    updated = true;
+                }
+                else if (option == "--yarrharr" && i + 1 < argc) {
+                    config.yarrharr_api_key = argv[++i];
+                    updated = true;
+                }
+            }
+
+            if (!updated) {
+                // Original interactive config behavior
+                std::string tmdb_api_key;
+                std::string yarrharr_api_key;
+                
+                std::cout << "Enter TMDB API key (press Enter to skip): ";
+                std::getline(std::cin, tmdb_api_key);
+                if (!tmdb_api_key.empty()) config.tmdb_api_key = tmdb_api_key;
+                
+                std::cout << "Enter YarrHarr API key (press Enter to skip, email api@sleepy.engineer to get one): ";
+                std::getline(std::cin, yarrharr_api_key);
+                if (!yarrharr_api_key.empty()) config.yarrharr_api_key = yarrharr_api_key;
+            }
             
-            std::cout << "Enter TMDB API key: ";
-            std::getline(std::cin, tmdb_api_key);
-            
-            std::cout << "Enter YarrHarr API key (email api@sleepy.engineer to get one): ";
-            std::getline(std::cin, yarrharr_api_key);
-            
-            Config newConfig{
-                tmdb_api_key,
-                yarrharr_api_key,
-                config.download_path,
-                true,
-                true
-            };
-            newConfig.save("config.json");
+            config.save(configPath);
             return 0;
         }
 
@@ -322,6 +350,81 @@ int main(int argc, char* argv[]) {
                 return 0;
             }
             return 1;
+        }
+        else if (command == "games") {
+            if (argc < 3) {
+                std::cerr << "Error: games command requires a subcommand\n";
+                return 1;
+            }
+
+            std::string subcommand = argv[2];
+            
+            try {
+                Games games(config.yarrharr_api_key);
+
+                if (subcommand == "search" && argc > 3) {
+                    std::string query;
+                    for (int i = 3; i < argc; i++) {
+                        query += std::string(argv[i]) + " ";
+                    }
+
+                    auto results = games.search(query);
+                    if (results.empty()) {
+                        std::cout << "No games found matching your search.\n";
+                    } else {
+                        for (const auto& game : results) {
+                            std::cout << "[Game] " << game.title << " - ID: " << game.id << "\n"
+                                     << "  Released: " << game.date << "\n"
+                                     << "  Last Updated: " << game.last_updated << "\n\n";
+                        }
+                    }
+                }
+                else if (subcommand == "info" && argc > 3) {
+                    auto game = games.getGameDetails(argv[3]);
+                    std::cout << "\nGame: " << game.title << "\n"
+                              << "ID: " << game.id << "\n"
+                              << "Released: " << game.date << "\n"
+                              << "Last Updated: " << game.last_updated << "\n\n"
+                              << "To download this game:\n"
+                              << "./yarrharr games download " << game.id << "\n";
+                }
+                else if (subcommand == "download" && argc > 3) {
+                    auto game = games.getGameDetails(argv[3]);
+                    std::string output_dir = config.download_path + "/Games";
+                    utils::createDirectoryIfNotExists(output_dir);
+                    
+                    std::string filename = utils::sanitizeFilename(game.title) + ".rar";
+                    std::string output_path = (fs::path(output_dir) / filename).string();
+                    
+                    Downloader downloader("https://sleepy.engineer/api/yarrharr/games", false, false);
+                    if (!config.yarrharr_api_key.empty()) {
+                        downloader.setApiKey(config.yarrharr_api_key);
+                    }
+                    
+                    std::cout << "Downloading " << game.title << " to " << output_path << "\n";
+                    downloader.downloadFile(game.direct_link, output_path);
+                }
+                else {
+                    std::cerr << "Error: Unknown games subcommand or missing arguments\n";
+                    return 1;
+                }
+            }
+            catch (const GameNotFoundError& e) {
+                std::cerr << "Error: Game not found - " << e.what() << "\n";
+                return 1;
+            }
+            catch (const GameNetworkError& e) {
+                std::cerr << "Network error: " << e.what() << "\n";
+                return 1;
+            }
+            catch (const GameParseError& e) {
+                std::cerr << "Error parsing game data: " << e.what() << "\n";
+                return 1;
+            }
+            catch (const GameError& e) {
+                std::cerr << "Game error: " << e.what() << "\n";
+                return 1;
+            }
         }
         else {
             printHelp();

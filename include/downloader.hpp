@@ -17,6 +17,8 @@ public:
     void downloadShow(const Show& show, const std::string& output_dir);
     
     void setProgressCallback(std::function<void(int, int)> callback);
+    void downloadFile(const std::string& url, const std::string& output_path);
+    void parseProgress(const std::string& line);
 
 private:
     std::string base_url_;
@@ -26,5 +28,4 @@ private:
     std::function<void(int, int)> progress_callback_;
     
     std::string buildUrl(const std::string& tmdb_id, int season = 0, int episode = 0);
-    void downloadFile(const std::string& url, const std::string& output_path);
 };

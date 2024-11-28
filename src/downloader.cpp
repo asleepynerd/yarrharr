@@ -15,8 +15,11 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include "download_utils.hpp"
+#include <algorithm>  // for std::transform
 
 namespace fs = std::filesystem;
+
+std::string formatTime(double seconds);
 
 bool isFFmpegAvailable() {
     #ifdef _WIN32
@@ -36,13 +39,67 @@ bool convertToMp4(const std::string& input_path, const std::string& output_path)
     return system(command.c_str()) == 0;
 }
 
-bool isM3U8Url(const std::string& url) {
-    return url.find(".m3u8") != std::string::npos;
+size_t headerCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
+    std::string* contentType = static_cast<std::string*>(userdata);
+    std::string header(buffer, size * nitems);
+    
+    std::string headerLower = header;
+    std::transform(headerLower.begin(), headerLower.end(), headerLower.begin(), ::tolower);
+    
+    if (headerLower.find("content-type:") == 0) {
+        *contentType = header.substr(header.find(":") + 1);
+        contentType->erase(0, contentType->find_first_not_of(" \n\r\t"));
+        contentType->erase(contentType->find_last_not_of(" \n\r\t") + 1);
+    }
+    return size * nitems;
+}
+
+bool isM3U8Url(const std::string& url, const std::string& api_key = "") {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return false;
+    }
+
+    std::string contentType;
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &contentType);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    
+    struct curl_slist* headers = NULL;
+    if (!api_key.empty()) {
+        headers = curl_slist_append(headers, ("X-API-Key: " + api_key).c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        return false;
+    }
+    
+    return contentType == "application/vnd.apple.mpegurl" || 
+           contentType == "application/x-mpegurl";
 }
 
 size_t ffmpegProgressCallback(void* ptr, size_t size, size_t nmemb, FILE* stream) {
     static auto lastUpdate = std::chrono::steady_clock::now();
     static int64_t lastDuration = 0;
+    static bool initialized = false;
+    static struct winsize w;
+    
+    if (!initialized) {
+        std::cout.setf(std::ios::unitbuf);  // Disable buffering
+        setvbuf(stdout, nullptr, _IONBF, 0);  // Disable stdio buffering
+        initialized = true;
+    }
     
     std::string line(static_cast<char*>(ptr), size * nmemb);
     
@@ -50,7 +107,11 @@ size_t ffmpegProgressCallback(void* ptr, size_t size, size_t nmemb, FILE* stream
         auto now = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
         
-        if (duration.count() >= 100) {
+        if (duration.count() >= 100) {  // Update every 100ms
+            // Get terminal width
+            ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+            int termWidth = w.ws_col;
+            
             size_t timePos = line.find("time=") + 5;
             std::string timeStr = line.substr(timePos, 8);
             
@@ -61,21 +122,27 @@ size_t ffmpegProgressCallback(void* ptr, size_t size, size_t nmemb, FILE* stream
             
             double speed = (currentDuration - lastDuration) * 1000.0 / duration.count();
             
-            std::cout << "\033[2K\r"; 
-            std::cout << "Downloading [";
+            // Calculate available width for progress bar
+            int textWidth = 40;  // Space for text elements
+            int barWidth = termWidth - textWidth;
+            if (barWidth < 10) barWidth = 10;  // Minimum bar width
             
-            int progress = (currentDuration * 50) / (2 * 3600);
-            for (int i = 0; i < 50; i++) {
+            std::cout << "\033[2K\r🎞  Downloading | [";
+            
+            int progress = (currentDuration * barWidth) / (2 * 3600);  // Assuming 2-hour max duration
+            for (int i = 0; i < barWidth; i++) {
                 if (i < progress) {
-                    std::cout << "=";
+                    std::cout << "█";  // Full block
                 } else if (i == progress) {
-                    std::cout << ">";
+                    std::cout << "▓";  // Partial block
                 } else {
-                    std::cout << " ";
+                    std::cout << "░";  // Empty block
                 }
             }
             
-            std::cout << "] " << timeStr << " @ " << std::fixed << std::setprecision(2) << speed << "x";
+            int percentage = (currentDuration * 100) / (2 * 3600);
+            std::cout << "] " << std::setw(3) << percentage << "% | " 
+                     << timeStr << " @ " << std::fixed << std::setprecision(2) << speed << "x";
             std::cout.flush();
             
             lastUpdate = now;
@@ -94,12 +161,18 @@ Downloader::Downloader(const std::string& base_url, bool mp4_mode, bool skip_spe
 }
 
 void Downloader::downloadMovie(const Movie& movie, const std::string& output_dir) {
-    std::string filename = utils::sanitizeFilename(movie.title + " (" + movie.release_date.substr(0, 4) + ").mkv");
-    std::string output_path = (fs::path(output_dir) / "Movies" / filename).string();
+    // Build URL first
+    std::string url = buildUrl(movie.id);
     
+    // Now we can use the URL to determine the extension
+    std::string filename = utils::sanitizeFilename(
+        movie.title + " (" + movie.release_date.substr(0, 4) + ")" + 
+        (isM3U8Url(url, api_key_) ? ".mp4" : ".mkv")
+    );
+    
+    std::string output_path = (fs::path(output_dir) / "Movies" / filename).string();
     utils::createDirectoryIfNotExists((fs::path(output_dir) / "Movies").string());
     
-    std::string url = buildUrl(movie.id);
     downloadFile(url, output_path);
 }
 
@@ -112,16 +185,16 @@ void Downloader::downloadEpisode(const Show& show, const Episode& episode, const
     utils::createDirectoryIfNotExists(show_dir);
     utils::createDirectoryIfNotExists(season_dir);
     
+    std::string url = buildUrl(show.id, episode.season, episode.episode);
+    
     std::string filename = utils::sanitizeFilename(
         show.name + " - S" + 
         (episode.season < 10 ? "0" : "") + std::to_string(episode.season) + "E" + 
         (episode.episode < 10 ? "0" : "") + std::to_string(episode.episode) + " - " + 
-        episode.name + ".mkv"
+        (isM3U8Url(url, api_key_) ? ".mp4" : ".mkv")
     );
     
     std::string output_path = (fs::path(season_dir) / filename).string();
-    std::string url = buildUrl(show.id, episode.season, episode.episode);
-    
     downloadFile(url, output_path);
 }
 
@@ -169,32 +242,35 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
         }
     }
 
-    std::cout << "\033[2K\rDownloading to: " << (final_path.empty() ? download_path : final_path) << std::flush;
+    std::cout << "Downloading to: " << (final_path.empty() ? download_path : final_path) << std::endl;
+    std::cout << std::endl;
     
-    if (isM3U8Url(url)) {
-        std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + url + 
-                            "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
-                            "-metadata title= -metadata description= -metadata comment= " +
-                            "-metadata synopsis= -metadata show= -metadata episode_id= " +
-                            "-metadata network= -metadata genre= " +
-                            "-c copy \"" + download_path + "\" -y 2>&1";
-        
+    if (isM3U8Url(url, api_key_)) {
+        std::string headers = !api_key_.empty() ? " -headers \"X-API-Key: " + api_key_ + "\"" : "";
+        std::string command = "ffmpeg -nostats -hide_banner -loglevel error " + headers +
+                              " -i \"" + url + "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
+                              "-metadata title= -metadata description= -metadata comment= " +
+                              "-metadata synopsis= -metadata show= -metadata episode_id= " +
+                              "-metadata network= -metadata genre= " +
+                              "-c copy \"" + download_path + "\" -y " +
+                              "-progress pipe:1 2>/dev/null";
+
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
             throw std::runtime_error("Failed to start ffmpeg");
         }
-        
+
+        std::string line;
         char buffer[128];
         while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            ffmpegProgressCallback(buffer, 1, strlen(buffer), nullptr);
+            line = buffer;
+            parseProgress(line);
         }
-        
+
         int status = pclose(pipe);
-        std::cout << std::endl;
-        
         if (status != 0) {
             fs::remove(download_path);
-            throw std::runtime_error("Failed to download m3u8 stream");
+            throw std::runtime_error("FFmpeg exited with an error.");
         }
     } else {
         CURL* curl = curl_easy_init();
@@ -236,12 +312,14 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
             fs::remove(download_path);
             throw std::runtime_error("Download failed: " + std::string(curl_easy_strerror(res)));
         }
-        
-        if (res == CURLE_OK) {
+
+        if (output_path.find(".mkv") != std::string::npos || 
+            output_path.find(".mp4") != std::string::npos) {
+            
             std::string tempPath = download_path + ".processing";
             std::rename(download_path.c_str(), tempPath.c_str());
             
-            std::string command = "ffmpeg -v quiet -stats_period 0.1 -i \"" + tempPath + 
+            std::string command = "ffmpeg -stats_period 0.1 -i \"" + tempPath + 
                                 "\" -map 0:v -map 0:a -map 0:s? -map_metadata -1 " +
                                 "-metadata title= -metadata description= -metadata comment= " +
                                 "-metadata synopsis= -metadata show= -metadata episode_id= " +
@@ -268,6 +346,81 @@ void Downloader::downloadFile(const std::string& url, const std::string& output_
     std::cout << std::endl;
 }
 
+void Downloader::parseProgress(const std::string& line) {
+    static bool first_update = true;
+    static int64_t total_duration_ms = 0;
+    static int64_t last_time_ms = 0;
+    static auto lastUpdate = std::chrono::steady_clock::now();
+
+    std::string key, value;
+    size_t pos = line.find('=');
+    if (pos != std::string::npos) {
+        key = line.substr(0, pos);
+        value = line.substr(pos + 1);
+    } else {
+        return;
+    }
+
+    if (key == "out_time_ms") {
+        int64_t current_time_ms = std::stoll(value);
+
+        auto now = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
+
+        if (duration.count() >= 100) {  // Update every 100ms
+            struct winsize w;
+            ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+            int termWidth = w.ws_col;
+
+            int textWidth = 40;
+            int barWidth = termWidth - textWidth;
+            if (barWidth < 10) barWidth = 10;
+
+            double seconds = current_time_ms / 1000000.0;
+            double progress = std::min(1.0, seconds / (3.5 * 3600.0));  // 3.5 hours max duration
+            int filled = static_cast<int>(progress * barWidth);
+
+            std::cout << "\033[A\033[2K\r🎞  Downloading | [";
+            
+            for (int i = 0; i < barWidth; ++i) {
+                if (i < filled) {
+                    std::cout << "█";
+                } else if (i == filled) {
+                    std::cout << "▓";
+                } else {
+                    std::cout << "░";
+                }
+            }
+
+            int percentage = static_cast<int>(progress * 100);
+            double speed = (current_time_ms - last_time_ms) / (duration.count() * 10.0);
+
+            std::cout << "] " << std::setw(3) << percentage << "% | "
+                     << formatTime(seconds) << " @ "
+                     << std::fixed << std::setprecision(2) << speed << "x"
+                     << std::flush;
+
+            lastUpdate = now;
+            last_time_ms = current_time_ms;
+        }
+    } else if (key == "progress" && value == "end") {
+        // Move cursor up one line and clear it for the final message
+        std::cout << "\033[A\033[2K\rDownload complete." << std::endl;
+    }
+}
+
 void Downloader::setProgressCallback(std::function<void(int, int)> callback) {
     progress_callback_ = std::move(callback);
+}
+
+std::string formatTime(double seconds) {
+    int hours = static_cast<int>(seconds) / 3600;
+    int minutes = (static_cast<int>(seconds) % 3600) / 60;
+    int secs = static_cast<int>(seconds) % 60;
+    
+    std::stringstream ss;
+    ss << std::setfill('0') << std::setw(2) << hours << ":"
+       << std::setfill('0') << std::setw(2) << minutes << ":"
+       << std::setfill('0') << std::setw(2) << secs;
+    return ss.str();
 }
